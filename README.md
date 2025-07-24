@@ -11,3 +11,10 @@ Domains are separated into packages with clear responsibility boundaries:
 
 Each domain exposes models, repositories, services and HTTP handlers under `internal/<domain>`.
 The entry point is in `cmd/server` and uses in-memory repositories.
+
+## Using sqlc
+
+SQL schema and query files live under the `db/` directory. Running `sqlc generate`
+produces typed query code in `internal/db` which can then be used by the domain
+repositories. The example `Postgres` user repository demonstrates how the
+generated `db.Queries` type is injected into the service layer.
