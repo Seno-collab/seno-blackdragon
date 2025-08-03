@@ -18,8 +18,8 @@ jobs:
           port: 22
           script: |
             set -e
-            echo "🔐 Logging in to GHCR..."
-            # echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            echo "🔒 Adding github.com to known_hosts..."
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
 
             APP_NAME=${{ github.event.repository.name }}
             APP_DIR=~/apps/$APP_NAME
