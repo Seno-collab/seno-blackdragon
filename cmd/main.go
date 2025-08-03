@@ -14,9 +14,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 )
 
+// @title           Seno-BlackDragon API
+// @version         1.0
+// @description     This is a black dragon server.
+// @host            localhost:8080
+// @BasePath        /api/v1
 func main() {
 	logger.Init(logger.LoggerConfig{
 		Environment: "production",
@@ -44,6 +51,15 @@ func main() {
 	redisClients := redisstore.InitRedis(logger.Log, redisAddr, redisPassword)
 	defer redisstore.CloseAll(logger.Log, redisClients)
 	router := gin.Default()
+
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// PingExample godoc
+	// @Summary      Ping example
+	// @Description  Do ping
+	// @Tags         ping
+	// @Success      200  {object}  map[string]string
+	// @Router       /ping [get]
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong"})
 	})
