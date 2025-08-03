@@ -23,8 +23,7 @@ jobs:
             chmod 644 ~/.ssh/known_hosts
 
             APP_NAME=${{ github.event.repository.name }}
-            APP_DIR= ../home/apps/
-
+            APP_DIR=~/../home/apps/$APP_NAME
             echo "📁 Preparing app directory: $APP_DIR"
             mkdir -p "$APP_DIR"
             cd "$APP_DIR"
