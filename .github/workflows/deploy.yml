@@ -3,4 +3,47 @@ name: Deploy to VPS
 on:
   push:
     branches: [main]
-    
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: seno-blackdragon
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            echo "🔐 Logging in to GHCR..."
+            # echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            APP_NAME=${{ github.event.repository.name }}
+            APP_DIR=~/apps/$APP_NAME
+
+            echo "📁 Preparing app directory: $APP_DIR"
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
+
+            if [ ! -d ".git" ]; then
+              echo "📥 Cloning repo..."
+              git clone git@github.com:${{ github.repository }} . --branch main
+            else
+              echo "📦 Pulling latest code..."
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+
+            echo "🧹 Stopping and cleaning up existing containers..."
+            docker compose down --remove-orphans || true
+
+            echo "📦 Docker Compose build & deploy..."
+            docker compose pull || true
+            docker compose build
+            docker compose up -d --remove-orphans
+
+            echo "🧹 Cleaning up old Docker images..."
+            docker image prune -f
