@@ -15,13 +15,13 @@ func ConnectDatabase(logger *zap.Logger, dsn string, dbName string) *pgx.Conn {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	dbpool, err := pgx.ConnectConfig(ctx, cfg)
+	dbConn, err := pgx.ConnectConfig(ctx, cfg)
 	if err != nil {
 		logger.Error("Unable to connect to database", zap.Error(err))
 	}
-	if err := dbpool.Ping(ctx); err != nil {
+	if err := dbConn.Ping(ctx); err != nil {
 		logger.Error("Database ping failed", zap.Error(err))
 	}
 	logger.Info("Connected to PostgreSQL database", zap.String("db", dbName))
-	return dbpool
+	return dbConn
 }

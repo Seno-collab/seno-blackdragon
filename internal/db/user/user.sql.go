@@ -23,6 +23,39 @@ func (q *Queries) ActivateUser(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const addUser = `-- name: AddUser :one
+INSERT INTO "user" (
+  full_name,
+  bio,
+  email,
+  password_hash,
+  create_at,
+  update_at
+) VALUES (
+  $1, $2, $3, $4, NOW(), NOW()
+)
+RETURNING id
+`
+
+type AddUserParams struct {
+	FullName     string
+	Bio          pgtype.Text
+	Email        pgtype.Text
+	PasswordHash pgtype.Text
+}
+
+func (q *Queries) AddUser(ctx context.Context, arg AddUserParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, addUser,
+		arg.FullName,
+		arg.Bio,
+		arg.Email,
+		arg.PasswordHash,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deactivateUser = `-- name: DeactivateUser :exec
 UPDATE "user"
 SET is_active = FALSE,

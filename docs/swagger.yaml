@@ -1,57 +1,108 @@
 definitions:
-  handler.LoginRequest:
+  dto.EmptyData:
+    type: object
+  dto.ErrorPayload:
     properties:
+      code:
+        description: Application-level error code (e.g., "VALIDATION_FAILED")
+        type: string
+      details:
+        description: List of field-specific validation errors
+        items:
+          $ref: '#/definitions/dto.FieldError'
+        type: array
+    type: object
+  dto.ErrorResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/dto.EmptyData'
+        description: Optional payload data
+      error:
+        allOf:
+        - $ref: '#/definitions/dto.ErrorPayload'
+        description: Error details if any
+      message:
+        description: Human-readable message
+        type: string
+      processing_ms:
+        description: Total processing time in milliseconds
+        type: integer
+      request_time:
+        description: When the request was received
+        type: string
+      response_code:
+        description: Business/application-specific code (e.g., 200, 10001)
+        type: integer
+      response_time:
+        description: When the response was sent
+        type: string
+      trace_id:
+        description: Trace identifier for correlation
+        type: string
+    type: object
+  dto.FieldError:
+    properties:
+      field:
+        description: Field name
+        type: string
+      message:
+        description: Human-readable validation message
+        type: string
+      param:
+        description: Parameter for the validation tag (e.g., "8" for min=8)
+        type: string
+      tag:
+        description: Validation tag (e.g., "required", "min")
+        type: string
+    type: object
+  handler.RegisterRequest:
+    properties:
+      bio:
+        type: string
       email:
+        type: string
+      full_name:
         type: string
       password:
         type: string
+    required:
+    - email
+    - password
     type: object
-  handler.LoginResponse:
-    properties:
-      access_token:
-        type: string
-      expires:
-        type: integer
-      refresh_token:
-        type: string
-      token_type:
-        type: string
+  handler.RegisterSuccess:
     type: object
 info:
   contact: {}
 paths:
-  /api/v1/auth/login:
+  /api/v1/auth/register:
     post:
       consumes:
       - application/json
-      description: Login user
+      description: Register user
       parameters:
-      - description: Info Login
+      - description: Register User
         in: body
         name: data
         required: true
         schema:
-          $ref: '#/definitions/handler.LoginRequest'
+          $ref: '#/definitions/handler.RegisterRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.LoginResponse'
+            $ref: '#/definitions/handler.RegisterSuccess'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Login
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Register
       tags:
       - auth
   /api/v1/ping:

@@ -2,8 +2,13 @@ package api
 
 import (
 	"seno-blackdragon/internal/api/handler"
+	"seno-blackdragon/internal/config"
+	"seno-blackdragon/internal/redisstore"
 	"seno-blackdragon/internal/repository"
 	"seno-blackdragon/internal/service"
+	"seno-blackdragon/pkg/middleware"
+	"seno-blackdragon/pkg/pass"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -17,20 +22,30 @@ import (
 // @description     This is a black dragon server.
 // @host            localhost:8080
 // @BasePath        /api/v1
-func InitRouter(db *pgx.Conn, logger *zap.Logger) *gin.Engine {
+func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *redisstore.ClientSet, cfg *config.Config) *gin.Engine {
 	router := gin.Default()
-
+	router.Use(middleware.TraceAndLogFullMiddleware(logger, nil))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	v1 := router.Group("/api/v1")
 	{
 		v1.GET("ping", handler.Ping)
 		// auth
+		jwtCfg := service.JWTConfig{
+			AccessSecret:  []byte(cfg.JWT.AccessSecret),
+			RefreshSecret: []byte(cfg.JWT.RefreshSecret),
+			AccessTTL:     15 * time.Minute,
+			RefreshTTL:    30 * 24 * time.Hour,
+			Issuer:        "seno-blackdragon",
+		}
+		hasher := pass.NewBcryptHasher(pass.BcryptOptions{Cost: 12})
+
 		authRepo := repository.NewAuthRepo(db)
-		authService := service.NewAuthService(authRepo, logger)
+		authService := service.NewAuthService(authRepo, redis.MustGet("token"), hasher, jwtCfg, logger)
 		authHandler := handler.NewAuthHandler(authService)
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/login", authHandler.Login)
+			// auth.POST("/login", authHandler.Login)
+			auth.POST("/register", authHandler.Register)
 		}
 	}
 	return router

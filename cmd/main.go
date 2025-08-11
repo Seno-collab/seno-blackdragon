@@ -8,45 +8,51 @@ import (
 	"os/signal"
 	_ "seno-blackdragon/docs"
 	"seno-blackdragon/internal/api"
+	"seno-blackdragon/internal/config"
 	"seno-blackdragon/internal/db"
 	"seno-blackdragon/internal/redisstore"
 	"seno-blackdragon/pkg/logger"
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
 func main() {
 	logger.Init(logger.LoggerConfig{
-		Environment: "production",
-		FilePath:    "logs/app",
+		Environment:   "development",
+		FilePath:      "logs/app",
+		ConsolePretty: true,
+		DebugToFile:   true,
+		RotateDaily:   true,
 	})
 	defer logger.Close()
-	if err := godotenv.Load(); err != nil {
-		logger.Log.Error("Count not load .env file", zap.Error(err))
-	}
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbName := os.Getenv("DB_NAME")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	portServer := os.Getenv("PORT")
-	redisAddr := os.Getenv("REDIS_ADDR")
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", dbUser, dbPassword, dbHost, dbPort, dbName)
+	cfg := config.LoadConfig(logger.Log)
+	logger.Log.Info("service_start", zap.String("version", "1.0.0"))
+	logger.Sugar.Infow("cache_miss", "key", "user:123")
+
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
 
 	logger.Log.Info("App started",
 		zap.String("Module", "main"),
 		zap.Int("version", 1),
 	)
-	db := db.ConnectDatabase(logger.Log, dsn, dbName)
-	redisClients := redisstore.InitRedis(logger.Log, redisAddr, redisPassword)
-	defer redisstore.CloseAll(logger.Log, redisClients)
-	router := api.InitRouter(db, logger.Log)
+	db := db.ConnectDatabase(logger.Log, dsn, cfg.DB.Name)
+	redis := redisstore.Config{
+		Addr:     cfg.Redis.Host,
+		Password: cfg.Redis.Password,
+		Databases: []redisstore.DBConfig{
+			{Name: "token", DB: 0},
+		},
+	}
+	cs, err := redisstore.Init(logger.Log, redis)
+	if err != nil {
+		logger.Log.Warn("redis_init_partial", zap.Error(err))
+	}
+	defer cs.Close(logger.Log)
+	router := api.InitRouter(db, logger.Log, cs,cfg)
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", portServer),
+		Addr:    fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler: router,
 	}
 	go func() {

@@ -32,3 +32,16 @@ WHERE id = $1;
 SELECT * FROM "user"
 WHERE full_name ILIKE '%' || $1 || '%'
 ORDER BY full_name;
+
+-- name: AddUser :one
+INSERT INTO "user" (
+  full_name,
+  bio,
+  email,
+  password_hash,
+  create_at,
+  update_at
+) VALUES (
+  $1, $2, $3, $4, NOW(), NOW()
+)
+RETURNING id;

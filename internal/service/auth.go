@@ -2,25 +2,230 @@ package service
 
 import (
 	"context"
-	"seno-blackdragon/internal/repository"
+	"errors"
+	"fmt"
+	"time"
 
+	"seno-blackdragon/internal/repository"
+	"seno-blackdragon/pkg/pass"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
+// Parse & validate helpers
+var (
+	ErrInvalidToken   = errors.New("invalid token")
+	ErrWrongType      = errors.New("wrong token type")
+	ErrWrongAlgorithm = errors.New("unexpected signing method")
+	ErrUserNotFound   = errors.New("user not found")
+	ErrEmailAlready   = errors.New("email already registered")
+)
+
+type JWTConfig struct {
+	AccessSecret  []byte
+	RefreshSecret []byte
+	AccessTTL     time.Duration // e.g. 15 * time.Minute
+	RefreshTTL    time.Duration // e.g. 30 * 24 * time.Hour
+	Issuer        string        // e.g. "seno-blackdragon"
+}
+
+type Claims struct {
+	UID       string `json:"uid"`
+	Email     string `json:"email"`
+	TokenType string `json:"typ"` // "access" | "refresh"
+	jwt.RegisteredClaims
+}
+
 type AuthService struct {
-	authRepo *repository.AuthRepo
-	logger   *zap.Logger
+	authRepo *repository.AuthRepo // interface
+	tokenRdb *redis.Client        // redis client for tokens
+	hasher   pass.Hasher          // Argon2id/Bcrypt impl
+	jwtCfg   JWTConfig
+	log      *zap.Logger
 }
 
-func NewAuthService(authRepo *repository.AuthRepo, logger *zap.Logger) *AuthService {
-	return &AuthService{authRepo: authRepo, logger: logger}
-}
-
-func (as *AuthService) Login(ctx context.Context, email string, password string) (string, string, error) {
-	_, err := as.authRepo.GetUserByMail(ctx, email)
-	if err != nil {
-		as.logger.Error("User not found", zap.String("email", email), zap.Error(err))
-		return "", "", err
+func NewAuthService(
+	authRepo *repository.AuthRepo,
+	tokenRedis *redis.Client,
+	hasher pass.Hasher,
+	jwtCfg JWTConfig,
+	log *zap.Logger,
+) *AuthService {
+	return &AuthService{
+		authRepo: authRepo,
+		tokenRdb: tokenRedis,
+		hasher:   hasher,
+		jwtCfg:   jwtCfg,
+		log:      log,
 	}
-	return "hello", "heloo", nil
 }
+
+// ===== token helpers =====
+
+func (as *AuthService) makeAccessToken(ctx context.Context, u *repository.UserModel, jti string) (string, time.Time, error) {
+	now := time.Now().UTC()
+	exp := now.Add(as.jwtCfg.AccessTTL)
+	claims := &Claims{
+		UID:       u.ID.String(),
+		Email:     u.Email,
+		TokenType: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    as.jwtCfg.Issuer,
+			Subject:   u.ID.String(),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(exp),
+			ID:        jti,
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := tok.SignedString(as.jwtCfg.AccessSecret)
+	return ss, exp, err
+}
+
+func (as *AuthService) makeRefreshToken(ctx context.Context, u *repository.UserModel, jti string) (string, time.Time, error) {
+	now := time.Now().UTC()
+	exp := now.Add(as.jwtCfg.RefreshTTL)
+	claims := &Claims{
+		UID:       u.ID.String(),
+		Email:     u.Email,
+		TokenType: "refresh",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    as.jwtCfg.Issuer,
+			Subject:   u.ID.String(),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(exp),
+			ID:        jti,
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := tok.SignedString(as.jwtCfg.RefreshSecret)
+	return ss, exp, err
+}
+
+// ===== auth flows =====
+
+func (as *AuthService) Register(ctx context.Context, fullName string, bio string, email string, password string) (uuid.UUID, error) {
+	u, err := as.authRepo.GetUserByEmail(ctx, email)
+	if err != nil && !errors.Is(err, ErrUserNotFound) {
+		return uuid.Nil, fmt.Errorf("failed to check existing email: %w", err)
+	}
+
+	if u != nil {
+		return uuid.Nil, ErrEmailAlready
+	}
+	hashed, err := as.hasher.Hash(password)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	param := &repository.UserModel{
+		FullName:     fullName,
+		Bio:          bio,
+		Email:        email,
+		PasswordHash: hashed,
+	}
+	id, err := as.authRepo.CreateUser(ctx, param)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return id, nil
+}
+
+// func (as *AuthService) Login(ctx context.Context, email string, password string) (access, refresh string, err error) {
+// 	u, err := as.authRepo.GetUserByEmail(ctx, email)
+// 	if err != nil || u == nil {
+// 		return "", "", errors.New("invalid credentials")
+// 	}
+// 	ok, _ := as.hasher.Verify(password, utils.PgTypeTextToString(u.PasswordHash))
+// 	if !ok {
+// 		return "", "", errors.New("invalid credentials")
+// 	}
+
+// 	rtJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
+
+// 	at, atExp, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+// 	rt, rtExp, err := as.makeRefreshToken(ctx, u, rtJTI)
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+
+// 	key := fmt.Sprintf("RT:%d:%s", u.ID, rtJTI)
+// 	if err := as.tokenRdb.Set(ctx, key, "1", time.Until(rtExp)).Err(); err != nil {
+// 		return "", "", err
+// 	}
+
+// 	_ = atExp
+// 	return at, rt, nil
+// }
+
+// func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
+// 	// Parse & validate refresh token
+// 	parser := jwt.NewParser(
+// 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+// 		jwt.WithIssuer(as.jwtCfg.Issuer),
+// 	)
+// 	claims := &Claims{}
+// 	tok, err := parser.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (any, error) {
+// 		if t.Method != jwt.SigningMethodHS256 {
+// 			return nil, ErrWrongAlgorithm
+// 		}
+// 		return as.jwtCfg.RefreshSecret, nil
+// 	})
+// 	if err != nil || !tok.Valid {
+// 		return "", "", ErrInvalidToken
+// 	}
+// 	if claims.TokenType != "refresh" {
+// 		return "", "", ErrWrongType
+// 	}
+
+// 	// Check session on Redis
+// 	rtKey := fmt.Sprintf("RT:%d:%s", claims.UID, claims.ID)
+// 	if _, err := as.tokenRdb.Get(ctx, rtKey).Result(); err != nil {
+// 		return "", "", errors.New("refresh session not found (revoked or expired)")
+// 	}
+
+// 	u, err := as.authRepo.GetUserByID(ctx, claims.UID)
+// 	if err != nil || u == nil {
+// 		return "", "", errors.New("user not found")
+// 	}
+
+// 	// Rotate: revoke old, create new
+// 	_ = as.tokenRdb.Del(ctx, rtKey).Err()
+
+// 	newRTJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
+// 	at, _, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+// 	rt, rtExp, err := as.makeRefreshToken(ctx, u, newRTJTI)
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+// 	newKey := fmt.Sprintf("RT:%d:%s", u.ID, newRTJTI)
+// 	if err := as.tokenRdb.Set(ctx, newKey, "1", time.Until(rtExp)).Err(); err != nil {
+// 		return "", "", err
+// 	}
+
+// 	return at, rt, nil
+// }
+
+// func (as *AuthService) Logout(ctx context.Context, userID int64, refreshJTI string, accessJTI string, accessExp time.Time) error {
+// 	// Revoke refresh session
+// 	key := fmt.Sprintf("RT:%d:%s", userID, refreshJTI)
+// 	_ = as.tokenRdb.Del(ctx, key).Err()
+
+// 	// Optional: blacklist access token by JTI until it expires
+// 	if accessJTI != "" && !accessExp.IsZero() {
+// 		blKey := fmt.Sprintf("BL_AT:%s", accessJTI)
+// 		ttl := time.Until(accessExp)
+// 		if ttl > 0 {
+// 			_ = as.tokenRdb.Set(ctx, blKey, "1", ttl).Err()
+// 		}
+// 	}
+// 	return nil
+// }

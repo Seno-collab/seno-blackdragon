@@ -4,9 +4,9 @@
         "contact": {}
     },
     "paths": {
-        "/api/v1/auth/login": {
+        "/api/v1/auth/register": {
             "post": {
-                "description": "Login user",
+                "description": "Register user",
                 "consumes": [
                     "application/json"
                 ],
@@ -16,15 +16,15 @@
                 "tags": [
                     "auth"
                 ],
-                "summary": "Login",
+                "summary": "Register",
                 "parameters": [
                     {
-                        "description": "Info Login",
+                        "description": "Register User",
                         "name": "data",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.LoginRequest"
+                            "$ref": "#/definitions/handler.RegisterRequest"
                         }
                     }
                 ],
@@ -32,25 +32,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.LoginResponse"
+                            "$ref": "#/definitions/handler.RegisterSuccess"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     }
                 }
@@ -78,10 +72,105 @@
         }
     },
     "definitions": {
-        "handler.LoginRequest": {
+        "dto.EmptyData": {
+            "type": "object"
+        },
+        "dto.ErrorPayload": {
             "type": "object",
             "properties": {
+                "code": {
+                    "description": "Application-level error code (e.g., \"VALIDATION_FAILED\")",
+                    "type": "string"
+                },
+                "details": {
+                    "description": "List of field-specific validation errors",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FieldError"
+                    }
+                }
+            }
+        },
+        "dto.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Optional payload data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.EmptyData"
+                        }
+                    ]
+                },
+                "error": {
+                    "description": "Error details if any",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ErrorPayload"
+                        }
+                    ]
+                },
+                "message": {
+                    "description": "Human-readable message",
+                    "type": "string"
+                },
+                "processing_ms": {
+                    "description": "Total processing time in milliseconds",
+                    "type": "integer"
+                },
+                "request_time": {
+                    "description": "When the request was received",
+                    "type": "string"
+                },
+                "response_code": {
+                    "description": "Business/application-specific code (e.g., 200, 10001)",
+                    "type": "integer"
+                },
+                "response_time": {
+                    "description": "When the response was sent",
+                    "type": "string"
+                },
+                "trace_id": {
+                    "description": "Trace identifier for correlation",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FieldError": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field name",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "Human-readable validation message",
+                    "type": "string"
+                },
+                "param": {
+                    "description": "Parameter for the validation tag (e.g., \"8\" for min=8)",
+                    "type": "string"
+                },
+                "tag": {
+                    "description": "Validation tag (e.g., \"required\", \"min\")",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "bio": {
+                    "type": "string"
+                },
                 "email": {
+                    "type": "string"
+                },
+                "full_name": {
                     "type": "string"
                 },
                 "password": {
@@ -89,22 +178,8 @@
                 }
             }
         },
-        "handler.LoginResponse": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string"
-                },
-                "expires": {
-                    "type": "integer"
-                },
-                "refresh_token": {
-                    "type": "string"
-                },
-                "token_type": {
-                    "type": "string"
-                }
-            }
+        "handler.RegisterSuccess": {
+            "type": "object"
         }
     }
 }
