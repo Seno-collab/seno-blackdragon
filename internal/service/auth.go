@@ -8,20 +8,12 @@ import (
 
 	"seno-blackdragon/internal/repository"
 	"seno-blackdragon/pkg/pass"
+	"seno-blackdragon/pkg/response_status"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-)
-
-// Parse & validate helpers
-var (
-	ErrInvalidToken   = errors.New("invalid token")
-	ErrWrongType      = errors.New("wrong token type")
-	ErrWrongAlgorithm = errors.New("unexpected signing method")
-	ErrUserNotFound   = errors.New("user not found")
-	ErrEmailAlready   = errors.New("email already registered")
 )
 
 type JWTConfig struct {
@@ -109,12 +101,12 @@ func (as *AuthService) makeRefreshToken(ctx context.Context, u *repository.UserM
 
 func (as *AuthService) Register(ctx context.Context, fullName string, bio string, email string, password string) (uuid.UUID, error) {
 	u, err := as.authRepo.GetUserByEmail(ctx, email)
-	if err != nil && !errors.Is(err, ErrUserNotFound) {
+	if err == nil && !errors.Is(err, response_status.ErrUserNotFound) {
 		return uuid.Nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
 	if u != nil {
-		return uuid.Nil, ErrEmailAlready
+		return uuid.Nil, response_status.ErrEmailAlready
 	}
 	hashed, err := as.hasher.Hash(password)
 	if err != nil {
@@ -133,35 +125,34 @@ func (as *AuthService) Register(ctx context.Context, fullName string, bio string
 	return id, nil
 }
 
-// func (as *AuthService) Login(ctx context.Context, email string, password string) (access, refresh string, err error) {
-// 	u, err := as.authRepo.GetUserByEmail(ctx, email)
-// 	if err != nil || u == nil {
-// 		return "", "", errors.New("invalid credentials")
-// 	}
-// 	ok, _ := as.hasher.Verify(password, utils.PgTypeTextToString(u.PasswordHash))
-// 	if !ok {
-// 		return "", "", errors.New("invalid credentials")
-// 	}
+func (as *AuthService) Login(ctx context.Context, email string, password string) (access, refresh string, expired int64, err error) {
+	u, err := as.authRepo.GetUserByEmail(ctx, email)
+	if err != nil || u == nil {
+		return "", "", 0, response_status.ErrInvalidCredentials
+	}
+	ok, _ := as.hasher.Verify(password, u.PasswordHash)
+	if !ok {
+		return "", "", 0, response_status.ErrInvalidCredentials
+	}
 
-// 	rtJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
+	rtJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
 
-// 	at, atExp, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
-// 	if err != nil {
-// 		return "", "", err
-// 	}
-// 	rt, rtExp, err := as.makeRefreshToken(ctx, u, rtJTI)
-// 	if err != nil {
-// 		return "", "", err
-// 	}
+	at, atExp, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
+	if err != nil {
+		return "", "", 0, err
+	}
+	rt, rtExp, err := as.makeRefreshToken(ctx, u, rtJTI)
+	if err != nil {
+		return "", "", 0, err
+	}
 
-// 	key := fmt.Sprintf("RT:%d:%s", u.ID, rtJTI)
-// 	if err := as.tokenRdb.Set(ctx, key, "1", time.Until(rtExp)).Err(); err != nil {
-// 		return "", "", err
-// 	}
+	key := fmt.Sprintf("RT:%d:%s", u.ID, rtJTI)
+	if err := as.tokenRdb.Set(ctx, key, "1", time.Until(rtExp)).Err(); err != nil {
+		return "", "", 0, err
+	}
 
-// 	_ = atExp
-// 	return at, rt, nil
-// }
+	return at, rt, int64(atExp.Unix()), nil
+}
 
 // func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
 // 	// Parse & validate refresh token

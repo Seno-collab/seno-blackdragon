@@ -3,6 +3,7 @@ package logger
 import (
 	"fmt"
 	"os"
+	"seno-blackdragon/pkg/utils"
 	"strings"
 	"sync"
 	"time"
@@ -13,10 +14,9 @@ import (
 )
 
 var (
-	Log         *zap.Logger
-	Sugar       *zap.SugaredLogger
-	dailyWriter *DailyFileWriter
-	level       zap.AtomicLevel
+	Log   *zap.Logger
+	Sugar *zap.SugaredLogger
+	level zap.AtomicLevel
 )
 
 type LoggerConfig struct {
@@ -85,7 +85,7 @@ func Init(cfg LoggerConfig) error {
 	if cfg.FilePath != "" {
 		var fileWS zapcore.WriteSyncer
 		if cfg.RotateDaily {
-			dailyWriter = NewDailyFileWriter(cfg.FilePath)
+			dailyWriter := NewDailyFileWriter(cfg.FilePath)
 			fileWS = zapcore.AddSync(dailyWriter)
 		} else {
 			maxSize := cfg.MaxSizeMB
@@ -171,22 +171,55 @@ func NewDailyFileWriter(basePath string) *DailyFileWriter {
 	return &DailyFileWriter{basePath: basePath}
 }
 
-func (w *DailyFileWriter) Write(p []byte) (n int, err error) {
+func (w *DailyFileWriter) rotateIfNeededLocked() error {
+	today := time.Now().Format("2006-01-02")
+	if w.file != nil && today == w.curDate {
+		return nil
+	}
+	if w.file != nil {
+		_ = w.file.Sync()
+		_ = w.file.Close()
+	}
+	filePath := fmt.Sprintf("%s-%s.log", w.basePath, today)
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	w.file = f
+	w.curDate = today
+	return nil
+}
+
+func (w *DailyFileWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	today := time.Now().Format("2006-01-02")
-	if w.file == nil || today != w.curDate {
-		if w.file != nil {
-			w.file.Close()
-		}
-		filePath := fmt.Sprintf("%s-%s.log", w.basePath, today)
-		f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return 0, err
-		}
-		w.file = f
-		w.curDate = today
+	if err := w.rotateIfNeededLocked(); err != nil {
+		return 0, err
 	}
 	return w.file.Write(p)
+}
+
+func (w *DailyFileWriter) Sync() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.file != nil {
+		return w.file.Sync()
+	}
+	return nil
+}
+
+func (w *DailyFileWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.file != nil {
+		if err := w.file.Sync(); err != nil {
+			_ = w.file.Close()
+			w.file = nil
+			return err
+		}
+		err := w.file.Close()
+		w.file = nil
+		return err
+	}
+	return nil
 }

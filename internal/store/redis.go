@@ -1,4 +1,4 @@
-package redisstore
+package store
 
 import (
 	"context"
@@ -37,7 +37,7 @@ type DBConfig struct {
 
 // Init creates and health-checks all redis clients.
 // It returns a ClientSet or an error if any client fails to connect.
-func Init(logger *zap.Logger, cfg Config) (*ClientSet, error) {
+func InitRedis(logger *zap.Logger, cfg Config) (*ClientSet, error) {
 	if cfg.PoolSize <= 0 {
 		cfg.PoolSize = 20
 	}

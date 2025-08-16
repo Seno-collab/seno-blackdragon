@@ -10,7 +10,7 @@ import (
 	"seno-blackdragon/internal/api"
 	"seno-blackdragon/internal/config"
 	"seno-blackdragon/internal/db"
-	"seno-blackdragon/internal/redisstore"
+	"seno-blackdragon/internal/store"
 	"seno-blackdragon/pkg/logger"
 	"syscall"
 	"time"
@@ -38,19 +38,19 @@ func main() {
 		zap.Int("version", 1),
 	)
 	db := db.ConnectDatabase(logger.Log, dsn, cfg.DB.Name)
-	redis := redisstore.Config{
+	redis := store.Config{
 		Addr:     cfg.Redis.Host,
 		Password: cfg.Redis.Password,
-		Databases: []redisstore.DBConfig{
+		Databases: []store.DBConfig{
 			{Name: "token", DB: 0},
 		},
 	}
-	cs, err := redisstore.Init(logger.Log, redis)
+	cs, err := store.InitRedis(logger.Log, redis)
 	if err != nil {
 		logger.Log.Warn("redis_init_partial", zap.Error(err))
 	}
 	defer cs.Close(logger.Log)
-	router := api.InitRouter(db, logger.Log, cs,cfg)
+	router := api.InitRouter(db, logger.Log, cs, cfg)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler: router,

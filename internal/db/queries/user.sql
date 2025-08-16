@@ -39,8 +39,8 @@ INSERT INTO "user" (
   bio,
   email,
   password_hash,
-  create_at,
-  update_at
+  created_at,
+  updated_at
 ) VALUES (
   $1, $2, $3, $4, NOW(), NOW()
 )

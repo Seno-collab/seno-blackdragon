@@ -29,7 +29,7 @@ func NewAuthRepo(db user.DBTX) *AuthRepo {
 	return &AuthRepo{q: q}
 }
 
-func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*user.User, error) {
+func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*UserModel, error) {
 	row, err := r.q.GetUserByEmail(ctx, utils.StringToPgTypeText(email))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -37,7 +37,13 @@ func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*user.User
 		}
 		return nil, err
 	}
-	return &row, nil
+	u := &UserModel{
+		ID:           utils.UUIDFromPgUUID(row.ID),
+		FullName:     row.FullName,
+		Bio:          utils.PgTypeTextToString(row.Bio),
+		PasswordHash: utils.PgTypeTextToString(row.PasswordHash),
+	}
+	return u, nil
 }
 
 func (r *AuthRepo) RegisterUser(ctx context.Context, email, fullName, bio, password_hash string) (pgtype.UUID, error) {
