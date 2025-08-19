@@ -5,10 +5,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func convert_type[T any, U any](T any, U any) (U any, err){
-
-}
-
 func StringFromPgText(t pgtype.Text) string {
 	if t.Valid {
 		return t.String
