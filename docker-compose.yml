@@ -5,7 +5,7 @@ services:
     image: nginx:latest
     container_name: nginx
     ports:
-      -"80:80"
+      - "80:80"
     volumes:
       -./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: seno-blackdragon-api:v1.0
+    image: seno-blackdragon-api
     container_name: seno-blackdragon-api
     hostname: seno-blackdragon-api
     env_file:
