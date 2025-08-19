@@ -1,12 +1,14 @@
-# # Stage 1: Build
-# FROM golang:latest AS builder
+# Stage 1: Build
+FROM golang:1.24.1-alpine AS builder
 
-# # Set working directory inside container
-# WORKDIR /app
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o app
 
-# COPY go.mod go.sum ./
-# RUN go mod download
+FROM alpine:3.20
 
-# COPY . .
-
-# RUN go build -o app .
+WORKDIR /app
+COPY --from=builder /app/app .
+CMD ["./app"]

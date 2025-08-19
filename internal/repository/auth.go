@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"seno-blackdragon/internal/db/user"
-	"seno-blackdragon/pkg/response_status"
+	"seno-blackdragon/pkg/enum"
 	"seno-blackdragon/pkg/utils"
 
 	"github.com/google/uuid"
@@ -30,18 +30,18 @@ func NewAuthRepo(db user.DBTX) *AuthRepo {
 }
 
 func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*UserModel, error) {
-	row, err := r.q.GetUserByEmail(ctx, utils.StringToPgTypeText(email))
+	row, err := r.q.GetUserByEmail(ctx, utils.PgTextFromString(email))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, response_status.ErrUserNotFound
+			return nil, enum.ErrUserNotFound
 		}
 		return nil, err
 	}
 	u := &UserModel{
 		ID:           utils.UUIDFromPgUUID(row.ID),
 		FullName:     row.FullName,
-		Bio:          utils.PgTypeTextToString(row.Bio),
-		PasswordHash: utils.PgTypeTextToString(row.PasswordHash),
+		Bio:          utils.StringFromPgText(row.Bio),
+		PasswordHash: utils.StringFromPgText(row.PasswordHash),
 	}
 	return u, nil
 }
@@ -49,9 +49,9 @@ func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*UserModel
 func (r *AuthRepo) RegisterUser(ctx context.Context, email, fullName, bio, password_hash string) (pgtype.UUID, error) {
 	user := user.AddUserParams{
 		FullName:     fullName,
-		Email:        utils.StringToPgTypeText(email),
-		Bio:          utils.StringToPgTypeText(bio),
-		PasswordHash: utils.StringToPgTypeText(password_hash),
+		Email:        utils.PgTextFromString(email),
+		Bio:          utils.PgTextFromString(bio),
+		PasswordHash: utils.PgTextFromString(password_hash),
 	}
 	id, error := r.q.AddUser(ctx, user)
 	return id, error
@@ -60,9 +60,9 @@ func (r *AuthRepo) RegisterUser(ctx context.Context, email, fullName, bio, passw
 func (r AuthRepo) CreateUser(ctx context.Context, u *UserModel) (uuid.UUID, error) {
 	params := user.AddUserParams{
 		FullName:     u.FullName,
-		Email:        utils.StringToPgTypeText(u.Email),
-		Bio:          utils.StringToPgTypeText(u.Bio),
-		PasswordHash: utils.StringToPgTypeText(u.PasswordHash),
+		Email:        utils.PgTextFromString(u.Email),
+		Bio:          utils.PgTextFromString(u.Bio),
+		PasswordHash: utils.PgTextFromString(u.PasswordHash),
 	}
 
 	id, err := r.q.AddUser(ctx, params)

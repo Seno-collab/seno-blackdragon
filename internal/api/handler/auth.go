@@ -6,8 +6,8 @@ import (
 
 	"seno-blackdragon/internal/service"
 	"seno-blackdragon/pkg/dto"
+	"seno-blackdragon/pkg/enum"
 	"seno-blackdragon/pkg/middleware"
-	"seno-blackdragon/pkg/response_status"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,14 +53,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, response_status.VALIDATION_FAILED,
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.VALIDATION_FAILED,
 			"Invalid login payload", traceID, reqTime, err))
 		return
 	}
 
 	accessToken, refreshToken, expires, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
-		dto.WriteJSON(c, http.StatusUnauthorized, dto.NewError(http.StatusUnauthorized, response_status.AUTH_FAILED,
+		dto.WriteJSON(c, http.StatusUnauthorized, dto.NewError(http.StatusUnauthorized, enum.AUTH_FAILED,
 			"Invalid email or password", traceID, reqTime, err))
 		return
 	}
@@ -102,13 +102,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, response_status.VALIDATION_FAILED,
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.VALIDATION_FAILED,
 			"Invalid register payload", traceID, reqTime, err))
 		return
 	}
 	_, err := h.authService.Register(c.Request.Context(), req.FullName, req.Bio, req.Email, req.Password)
 	if err != nil {
-		dto.WriteJSON(c, http.StatusBadRequest, dto.NewError(http.StatusBadRequest, response_status.BUSINESS_ERROR,
+		dto.WriteJSON(c, http.StatusBadRequest, dto.NewError(http.StatusBadRequest, enum.BUSINESS_ERROR,
 			"Register user failed", traceID, reqTime, err))
 		return
 	}

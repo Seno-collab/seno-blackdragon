@@ -5,14 +5,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func PgTypeTextToString(t pgtype.Text) string {
+func convert_type[T any, U any](T any, U any) (U any, err){
+
+}
+
+func StringFromPgText(t pgtype.Text) string {
 	if t.Valid {
 		return t.String
 	}
 	return ""
 }
 
-func StringToPgTypeText(t string) pgtype.Text {
+func PgTextFromString(t string) pgtype.Text {
 	return pgtype.Text{
 		String: t,
 		Valid:  true,

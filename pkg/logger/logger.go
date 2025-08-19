@@ -3,7 +3,6 @@ package logger
 import (
 	"fmt"
 	"os"
-	"seno-blackdragon/pkg/utils"
 	"strings"
 	"sync"
 	"time"

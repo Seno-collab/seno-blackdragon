@@ -1,4 +1,4 @@
-package response_status
+package enum
 
 import "errors"
 
@@ -10,6 +10,7 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrEmailAlready       = errors.New("email already registered")
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrRefreshToken       = errors.New("refresh session not found (revoked or expired)")
 )
 
 var (

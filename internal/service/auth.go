@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"seno-blackdragon/internal/repository"
+	"seno-blackdragon/pkg/enum"
 	"seno-blackdragon/pkg/pass"
-	"seno-blackdragon/pkg/response_status"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -101,12 +101,12 @@ func (as *AuthService) makeRefreshToken(ctx context.Context, u *repository.UserM
 
 func (as *AuthService) Register(ctx context.Context, fullName string, bio string, email string, password string) (uuid.UUID, error) {
 	u, err := as.authRepo.GetUserByEmail(ctx, email)
-	if err == nil && !errors.Is(err, response_status.ErrUserNotFound) {
+	if err == nil && !errors.Is(err, enum.ErrUserNotFound) {
 		return uuid.Nil, fmt.Errorf("failed to check existing email: %w", err)
 	}
 
 	if u != nil {
-		return uuid.Nil, response_status.ErrEmailAlready
+		return uuid.Nil, enum.ErrEmailAlready
 	}
 	hashed, err := as.hasher.Hash(password)
 	if err != nil {
@@ -128,11 +128,11 @@ func (as *AuthService) Register(ctx context.Context, fullName string, bio string
 func (as *AuthService) Login(ctx context.Context, email string, password string) (access, refresh string, expired int64, err error) {
 	u, err := as.authRepo.GetUserByEmail(ctx, email)
 	if err != nil || u == nil {
-		return "", "", 0, response_status.ErrInvalidCredentials
+		return "", "", 0, enum.ErrInvalidCredentials
 	}
 	ok, _ := as.hasher.Verify(password, u.PasswordHash)
 	if !ok {
-		return "", "", 0, response_status.ErrInvalidCredentials
+		return "", "", 0, enum.ErrInvalidCredentials
 	}
 
 	rtJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
@@ -154,69 +154,69 @@ func (as *AuthService) Login(ctx context.Context, email string, password string)
 	return at, rt, int64(atExp.Unix()), nil
 }
 
-// func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
-// 	// Parse & validate refresh token
-// 	parser := jwt.NewParser(
-// 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
-// 		jwt.WithIssuer(as.jwtCfg.Issuer),
-// 	)
-// 	claims := &Claims{}
-// 	tok, err := parser.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (any, error) {
-// 		if t.Method != jwt.SigningMethodHS256 {
-// 			return nil, ErrWrongAlgorithm
-// 		}
-// 		return as.jwtCfg.RefreshSecret, nil
-// 	})
-// 	if err != nil || !tok.Valid {
-// 		return "", "", ErrInvalidToken
-// 	}
-// 	if claims.TokenType != "refresh" {
-// 		return "", "", ErrWrongType
-// 	}
+func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
+	// Parse & validate refresh token
+	parser := jwt.NewParser(
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(as.jwtCfg.Issuer),
+	)
+	claims := &Claims{}
+	tok, err := parser.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (any, error) {
+		if t.Method != jwt.SigningMethodHS256 {
+			return nil, enum.ErrWrongAlgorithm
+		}
+		return as.jwtCfg.RefreshSecret, nil
+	})
+	if err != nil || !tok.Valid {
+		return "", "", enum.ErrInvalidToken
+	}
+	if claims.TokenType != "refresh" {
+		return "", "", enum.ErrWrongType
+	}
 
-// 	// Check session on Redis
-// 	rtKey := fmt.Sprintf("RT:%d:%s", claims.UID, claims.ID)
-// 	if _, err := as.tokenRdb.Get(ctx, rtKey).Result(); err != nil {
-// 		return "", "", errors.New("refresh session not found (revoked or expired)")
-// 	}
+	// Check session on Redis
+	rtKey := fmt.Sprintf("RT:%d:%s", claims.UID, claims.ID)
+	if _, err := as.tokenRdb.Get(ctx, rtKey).Result(); err != nil {
+		return "", "", enum.ErrRefreshToken
+	}
 
-// 	u, err := as.authRepo.GetUserByID(ctx, claims.UID)
-// 	if err != nil || u == nil {
-// 		return "", "", errors.New("user not found")
-// 	}
+	u, err := as.authRepo.GetUserByID(ctx, claims.UID)
+	if err != nil || u == nil {
+		return "", "", enum.ErrUserNotFound
+	}
 
-// 	// Rotate: revoke old, create new
-// 	_ = as.tokenRdb.Del(ctx, rtKey).Err()
+	// Rotate: revoke old, create new
+	_ = as.tokenRdb.Del(ctx, rtKey).Err()
 
-// 	newRTJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
-// 	at, _, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
-// 	if err != nil {
-// 		return "", "", err
-// 	}
-// 	rt, rtExp, err := as.makeRefreshToken(ctx, u, newRTJTI)
-// 	if err != nil {
-// 		return "", "", err
-// 	}
-// 	newKey := fmt.Sprintf("RT:%d:%s", u.ID, newRTJTI)
-// 	if err := as.tokenRdb.Set(ctx, newKey, "1", time.Until(rtExp)).Err(); err != nil {
-// 		return "", "", err
-// 	}
+	newRTJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
+	at, _, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
+	if err != nil {
+		return "", "", err
+	}
+	rt, rtExp, err := as.makeRefreshToken(ctx, u, newRTJTI)
+	if err != nil {
+		return "", "", err
+	}
+	newKey := fmt.Sprintf("RT:%d:%s", u.ID, newRTJTI)
+	if err := as.tokenRdb.Set(ctx, newKey, "1", time.Until(rtExp)).Err(); err != nil {
+		return "", "", err
+	}
 
-// 	return at, rt, nil
-// }
+	return at, rt, nil
+}
 
-// func (as *AuthService) Logout(ctx context.Context, userID int64, refreshJTI string, accessJTI string, accessExp time.Time) error {
-// 	// Revoke refresh session
-// 	key := fmt.Sprintf("RT:%d:%s", userID, refreshJTI)
-// 	_ = as.tokenRdb.Del(ctx, key).Err()
+func (as *AuthService) Logout(ctx context.Context, userID int64, refreshJTI string, accessJTI string, accessExp time.Time) error {
+	// Revoke refresh session
+	key := fmt.Sprintf("RT:%d:%s", userID, refreshJTI)
+	_ = as.tokenRdb.Del(ctx, key).Err()
 
-// 	// Optional: blacklist access token by JTI until it expires
-// 	if accessJTI != "" && !accessExp.IsZero() {
-// 		blKey := fmt.Sprintf("BL_AT:%s", accessJTI)
-// 		ttl := time.Until(accessExp)
-// 		if ttl > 0 {
-// 			_ = as.tokenRdb.Set(ctx, blKey, "1", ttl).Err()
-// 		}
-// 	}
-// 	return nil
-// }
+	// Optional: blacklist access token by JTI until it expires
+	if accessJTI != "" && !accessExp.IsZero() {
+		blKey := fmt.Sprintf("BL_AT:%s", accessJTI)
+		ttl := time.Until(accessExp)
+		if ttl > 0 {
+			_ = as.tokenRdb.Set(ctx, blKey, "1", ttl).Err()
+		}
+	}
+	return nil
+}

@@ -39,11 +39,9 @@ func main() {
 	)
 	db := db.ConnectDatabase(logger.Log, dsn, cfg.DB.Name)
 	redis := store.Config{
-		Addr:     cfg.Redis.Host,
-		Password: cfg.Redis.Password,
-		Databases: []store.DBConfig{
-			{Name: "token", DB: 0},
-		},
+		Addr:      cfg.Redis.Host,
+		Password:  cfg.Redis.Password,
+		Databases: store.DBCache,
 	}
 	cs, err := store.InitRedis(logger.Log, redis)
 	if err != nil {

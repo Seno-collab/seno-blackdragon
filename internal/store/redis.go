@@ -35,6 +35,10 @@ type DBConfig struct {
 	DB   int    // e.g. 0
 }
 
+var DBCache = []DBConfig{
+	{Name: "token", DB: 0},
+}
+
 // Init creates and health-checks all redis clients.
 // It returns a ClientSet or an error if any client fails to connect.
 func InitRedis(logger *zap.Logger, cfg Config) (*ClientSet, error) {
