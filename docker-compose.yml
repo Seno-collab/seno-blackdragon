@@ -36,7 +36,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -77,7 +77,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     logging:
       driver: json-file
       options:
@@ -98,10 +98,11 @@ services:
       --save 60 1
       --appendonly yes
       --loglevel warning
-      # --requirepass ${REDIS_PASSWORD}         # nếu dùng auth, set trong .env
+      --protected-mode no
+      # --requirepass ${REDIS_PASSWORD}
     networks: [app-network]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli -h 127.0.0.1 ping", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
