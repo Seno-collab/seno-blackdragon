@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +31,7 @@ func main() {
 	cfg := config.LoadConfig(logger.Log)
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
+	gin.SetMode(gin.ReleaseMode)
 
 	logger.Log.Info("App started",
 		zap.String("Module", "main"),

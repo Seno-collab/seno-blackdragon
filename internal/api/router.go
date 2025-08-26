@@ -1,11 +1,13 @@
 package api
 
 import (
+	"net/http"
 	"seno-blackdragon/internal/api/handler"
 	"seno-blackdragon/internal/config"
 	"seno-blackdragon/internal/repository"
 	"seno-blackdragon/internal/service"
 	"seno-blackdragon/internal/store"
+	"seno-blackdragon/internal/version"
 	"seno-blackdragon/pkg/middleware"
 	"seno-blackdragon/pkg/pass"
 	"time"
@@ -29,6 +31,22 @@ func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *store.ClientSet, cfg *c
 		c.Redirect(302, "/docs/index.html")
 	})
 	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// === Health endpoints
+	router.GET("/health", func(c *gin.Context) { // liveness
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"uptime": "alive",
+		})
+	})
+	router.GET("/version", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"version":   version.Version,
+			"commit":    version.Commit,
+			"buildTime": version.BuildTime,
+		})
+	})
+
 	v1 := router.Group("/api/v1")
 	{
 		v1.GET("ping", handler.Ping)
