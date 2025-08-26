@@ -25,7 +25,10 @@ import (
 func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *store.ClientSet, cfg *config.Config) *gin.Engine {
 	router := gin.Default()
 	router.Use(middleware.TraceAndLogFullMiddleware(logger, nil))
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/docs", func(c *gin.Context) {
+		c.Redirect(302, "/docs/index.html")
+	})
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	v1 := router.Group("/api/v1")
 	{
 		v1.GET("ping", handler.Ping)
@@ -39,7 +42,7 @@ func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *store.ClientSet, cfg *c
 		}
 		hasher := pass.NewBcryptHasher(pass.BcryptOptions{Cost: 12})
 
-		authRepo := repository.NewAuthRepo(db)
+		authRepo := repository.NewUserRepo(db)
 		authService := service.NewAuthService(authRepo, redis.MustGet("token"), hasher, jwtCfg, logger)
 		authHandler := handler.NewAuthHandler(authService)
 		auth := v1.Group("/auth")

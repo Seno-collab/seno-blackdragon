@@ -45,3 +45,7 @@ INSERT INTO "user" (
   $1, $2, $3, $4, NOW(), NOW()
 )
 RETURNING id;
+
+-- name: GetUserByID :one
+SELECT * FROM "user"
+WHERE id = $1;

@@ -101,7 +101,6 @@ func InitRedis(logger *zap.Logger, cfg Config) (*ClientSet, error) {
 		logger.Info("redis_connected",
 			zap.String("name", d.Name),
 			zap.Int("db", d.DB),
-			zap.String("addr", cfg.Addr),
 		)
 		cs.clients[d.Name] = rc
 	}

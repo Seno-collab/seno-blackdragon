@@ -34,6 +34,7 @@ type LoginResponse struct {
 
 type LoginSuccess = dto.BaseResponse[LoginResponse]
 
+// @BasePath /api/v1
 // Login godoc
 // @Summary      Login
 // @Description  Login user
@@ -82,6 +83,7 @@ type RegisterRequest struct {
 
 type RegisterSuccess = dto.BaseResponse[dto.EmptyData]
 
+// @BasePath /api/v1
 // Register godoc
 // @Summary      Register
 // @Description  Register user
@@ -114,4 +116,38 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	dto.Ok(c, dto.NewSuccessEmpty(http.StatusOK, "Create user success", traceID, reqTime))
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"token_type"`
+}
+
+type RefreshTokenSuccess = dto.BaseResponse[RefreshTokenRequest]
+
+// @BasePath /api/v1
+// Register godoc
+// @Summary      Refresh token
+// @Description  Refresh token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        data  body      RefreshTokenRequest  true  "Register User"
+// @Success      200   {object}  RefreshTokenSuccess
+// @Failure      400   {object}  dto.ErrorResponse
+// @Failure      401   {object}  dto.ErrorResponse
+// @Router       /api/v1/auth/register [post]
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	reqTime := time.Now().UTC()
+	var req RefreshTokenRequest
+	traceID := c.GetString(middleware.ContextKeyTraceID)
+	if traceID == "" {
+		traceID = c.GetHeader(middleware.HeaderKeyTraceID)
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.BAD_REQUEST, "Invalid refresh token request", traceID, reqTime, err))
+	}
+	if req.RefreshToken == "" {
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.BAD_REQUEST, "Invalid refresh token", traceID, reqTime, enum.ErrRefreshToken))
+	}
+	// access_token, refresh_token, err := h.authService.Refresh(c, req.RefreshToken)
 }

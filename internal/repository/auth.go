@@ -2,17 +2,15 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"seno-blackdragon/internal/db/user"
 	"seno-blackdragon/pkg/enum"
 	"seno-blackdragon/pkg/utils"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AuthRepo struct {
+type UserRepo struct {
 	q *user.Queries
 }
 
@@ -24,17 +22,46 @@ type UserModel struct {
 	PasswordHash string
 }
 
-func NewAuthRepo(db user.DBTX) *AuthRepo {
+func NewUserRepo(db user.DBTX) *UserRepo {
 	q := user.New(db)
-	return &AuthRepo{q: q}
+	return &UserRepo{q: q}
 }
 
-func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*UserModel, error) {
-	row, err := r.q.GetUserByEmail(ctx, utils.PgTextFromString(email))
+func (ur *UserRepo) GetUserByEmail(ctx context.Context, email string) (*UserModel, error) {
+	row, err := ur.q.GetUserByEmail(ctx, utils.PgTextFromString(email))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, enum.ErrUserNotFound) {
 			return nil, enum.ErrUserNotFound
 		}
+		return nil, err
+	}
+	user := &UserModel{
+		ID:           utils.UUIDFromPgUUID(row.ID),
+		FullName:     row.FullName,
+		Bio:          utils.StringFromPgText(row.Bio),
+		PasswordHash: utils.StringFromPgText(row.PasswordHash),
+	}
+	return user, nil
+}
+
+func (ur UserRepo) CreateUser(ctx context.Context, u *UserModel) (uuid.UUID, error) {
+	params := user.AddUserParams{
+		FullName:     u.FullName,
+		Email:        utils.PgTextFromString(u.Email),
+		Bio:          utils.PgTextFromString(u.Bio),
+		PasswordHash: utils.PgTextFromString(u.PasswordHash),
+	}
+
+	id, err := ur.q.AddUser(ctx, params)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return utils.UUIDFromPgUUID(id), nil
+}
+
+func (ur UserRepo) GetUserByID(ctx context.Context, id uuid.UUID) (*UserModel, error) {
+	row, err := ur.q.GetUserByID(ctx, utils.PgUUIDFromUUID(id))
+	if err != nil {
 		return nil, err
 	}
 	u := &UserModel{
@@ -44,30 +71,4 @@ func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*UserModel
 		PasswordHash: utils.StringFromPgText(row.PasswordHash),
 	}
 	return u, nil
-}
-
-func (r *AuthRepo) RegisterUser(ctx context.Context, email, fullName, bio, password_hash string) (pgtype.UUID, error) {
-	user := user.AddUserParams{
-		FullName:     fullName,
-		Email:        utils.PgTextFromString(email),
-		Bio:          utils.PgTextFromString(bio),
-		PasswordHash: utils.PgTextFromString(password_hash),
-	}
-	id, error := r.q.AddUser(ctx, user)
-	return id, error
-}
-
-func (r AuthRepo) CreateUser(ctx context.Context, u *UserModel) (uuid.UUID, error) {
-	params := user.AddUserParams{
-		FullName:     u.FullName,
-		Email:        utils.PgTextFromString(u.Email),
-		Bio:          utils.PgTextFromString(u.Bio),
-		PasswordHash: utils.PgTextFromString(u.PasswordHash),
-	}
-
-	id, err := r.q.AddUser(ctx, params)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return utils.UUIDFromPgUUID(id), nil
 }

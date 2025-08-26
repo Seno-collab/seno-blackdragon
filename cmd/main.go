@@ -28,8 +28,6 @@ func main() {
 	})
 	defer logger.Close()
 	cfg := config.LoadConfig(logger.Log)
-	logger.Log.Info("service_start", zap.String("version", "1.0.0"))
-	logger.Sugar.Infow("cache_miss", "key", "user:123")
 
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
 

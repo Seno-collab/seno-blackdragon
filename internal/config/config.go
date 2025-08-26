@@ -36,7 +36,7 @@ func LoadConfig(logger *zap.Logger) *Config {
 	cfg := &Config{}
 	cfg.JWT.AccessSecret = os.Getenv("JWT_ACCESS_SECRET")
 	cfg.JWT.RefreshSecret = os.Getenv("JWT_REFRESH_SECRET")
-	cfg.Redis.Host = os.Getenv("REDIS_HOST")
+	cfg.Redis.Host = os.Getenv("REDIS_ADDR")
 	cfg.Redis.Password = os.Getenv("REDIS_PASSWORD")
 	cfg.DB.Host = os.Getenv("DB_HOST")
 	cfg.DB.Port = os.Getenv("DB_PORT")

@@ -89,6 +89,27 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 	return i, err
 }
 
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, full_name, bio, email, password_hash, is_active, created_at, updated_at FROM "user"
+WHERE id = $1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FullName,
+		&i.Bio,
+		&i.Email,
+		&i.PasswordHash,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const searchUsersByName = `-- name: SearchUsersByName :many
 SELECT id, full_name, bio, email, password_hash, is_active, created_at, updated_at FROM "user"
 WHERE full_name ILIKE '%' || $1 || '%'
