@@ -26,10 +26,11 @@ ARG BUILD_TIME=unknown
 # LƯU Ý: tất cả trên MỘT dòng hoặc nối bằng '&&' để không bị tách instruction
 RUN go build -trimpath -buildvcs=false \
   -ldflags="-s -w -buildid= \
-  -X 'your/module/internal/version.Version=${APP_VERSION}' \
-  -X 'your/module/internal/version.Commit=${GIT_COMMIT}' \
-  -X 'your/module/internal/version.BuildTime=${BUILD_TIME}'" \
+  -X 'seno-blackdragon/internal/version.Version=${APP_VERSION}' \
+  -X 'seno-blackdragon/internal/version.Commit=${GIT_COMMIT}' \
+  -X 'seno-blackdragon/internal/version.BuildTime=${BUILD_TIME}'" \
   -o /out/${APP_NAME} ./cmd
+
 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
