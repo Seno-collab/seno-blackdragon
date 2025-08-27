@@ -63,7 +63,7 @@ const docTemplate = `{
         },
         "/api/v1/auth/register": {
             "post": {
-                "description": "Register user",
+                "description": "Refresh token",
                 "consumes": [
                     "application/json"
                 ],
@@ -73,7 +73,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Register",
+                "summary": "Refresh token",
                 "parameters": [
                     {
                         "description": "Register User",
@@ -81,7 +81,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.RegisterRequest"
+                            "$ref": "#/definitions/handler.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -89,7 +89,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.RegisterSuccess"
+                            "$ref": "#/definitions/handler.RefreshTokenSuccess"
                         }
                     },
                     "400": {
@@ -230,6 +230,17 @@ const docTemplate = `{
             }
         },
         "handler.LoginSuccess": {
+            "type": "object"
+        },
+        "handler.RefreshTokenRequest": {
+            "type": "object",
+            "properties": {
+                "token_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RefreshTokenSuccess": {
             "type": "object"
         },
         "handler.RegisterRequest": {

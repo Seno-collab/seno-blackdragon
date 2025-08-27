@@ -52,7 +52,7 @@
         },
         "/api/v1/auth/register": {
             "post": {
-                "description": "Register user",
+                "description": "Refresh token",
                 "consumes": [
                     "application/json"
                 ],
@@ -62,7 +62,7 @@
                 "tags": [
                     "auth"
                 ],
-                "summary": "Register",
+                "summary": "Refresh token",
                 "parameters": [
                     {
                         "description": "Register User",
@@ -70,7 +70,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.RegisterRequest"
+                            "$ref": "#/definitions/handler.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -78,7 +78,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.RegisterSuccess"
+                            "$ref": "#/definitions/handler.RefreshTokenSuccess"
                         }
                     },
                     "400": {
@@ -219,6 +219,17 @@
             }
         },
         "handler.LoginSuccess": {
+            "type": "object"
+        },
+        "handler.RefreshTokenRequest": {
+            "type": "object",
+            "properties": {
+                "token_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RefreshTokenSuccess": {
             "type": "object"
         },
         "handler.RegisterRequest": {

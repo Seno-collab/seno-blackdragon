@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cloudwego/kitex/pkg/remote/trans/nphttp2/status"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -69,30 +68,29 @@ func InitRedis(logger *zap.Logger, cfg Config) (*ClientSet, error) {
 	var firstErr error
 	for _, d := range cfg.Databases {
 		rc := redis.NewClient(&redis.Options{
-		Addr:         cfg.Addr,
-		Password:     cfg.Password,
-		DB: d.DB,
-		PoolSize:     cfg.PoolSize,
-		MinIdleConns: cfg.MinIdleConns,
-		DialTimeout:  cfg.DialTimeout,
-		ReadTimeout:  cfg.ReadTimeout,
-		WriteTimeout: cfg.WriteTimeout,
-		PoolTimeout:  cfg.PoolTimeout,
-			
+			Addr:         cfg.Addr,
+			Password:     cfg.Password,
+			DB:           d.DB,
+			PoolSize:     cfg.PoolSize,
+			MinIdleConns: cfg.MinIdleConns,
+			DialTimeout:  cfg.DialTimeout,
+			ReadTimeout:  cfg.ReadTimeout,
+			WriteTimeout: cfg.WriteTimeout,
+			PoolTimeout:  cfg.PoolTimeout,
 		})
-		if firstErr == nil {
-			firstErr = status.Err()
-		}
+		// if firstErr == nil {
+		// 	firstErr = status.Err()
+		// }
 		if err := rc.Ping(context.Background()).Err(); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
 		}
-		 _, ok := cs.clients[d.Name]; 
+		_, ok := cs.clients[d.Name]
 		if ok {
 			firstErr = fmt.Errorf("redis client already exists: %s", d.Name)
 		} else {
-			cs.clients[d.Name]= rc
+			cs.clients[d.Name] = rc
 		}
 	}
 

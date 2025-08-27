@@ -68,6 +68,13 @@ definitions:
     type: object
   handler.LoginSuccess:
     type: object
+  handler.RefreshTokenRequest:
+    properties:
+      token_type:
+        type: string
+    type: object
+  handler.RefreshTokenSuccess:
+    type: object
   handler.RegisterRequest:
     properties:
       bio:
@@ -121,21 +128,21 @@ paths:
     post:
       consumes:
       - application/json
-      description: Register user
+      description: Refresh token
       parameters:
       - description: Register User
         in: body
         name: data
         required: true
         schema:
-          $ref: '#/definitions/handler.RegisterRequest'
+          $ref: '#/definitions/handler.RefreshTokenRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.RegisterSuccess'
+            $ref: '#/definitions/handler.RefreshTokenSuccess'
         "400":
           description: Bad Request
           schema:
@@ -144,7 +151,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
-      summary: Register
+      summary: Refresh token
       tags:
       - auth
   /api/v1/ping:
