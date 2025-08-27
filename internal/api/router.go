@@ -52,8 +52,8 @@ func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *store.ClientSet, cfg *c
 		v1.GET("ping", handler.Ping)
 		// auth
 		jwtCfg := service.JWTConfig{
-			AccessSecret:  []byte(cfg.JWT.AccessSecret),
-			RefreshSecret: []byte(cfg.JWT.RefreshSecret),
+			AccessSecret:  []byte(cfg.JwtAccessSecret),
+			RefreshSecret: []byte(cfg.JwtRefreshSecret),
 			AccessTTL:     15 * time.Minute,
 			RefreshTTL:    30 * 24 * time.Hour,
 			Issuer:        "seno-blackdragon",
@@ -61,7 +61,7 @@ func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *store.ClientSet, cfg *c
 		hasher := pass.NewBcryptHasher(pass.BcryptOptions{Cost: 12})
 
 		authRepo := repository.NewUserRepo(db)
-		authService := service.NewAuthService(authRepo, redis.MustGet("token"), hasher, jwtCfg, logger)
+		authService := service.NewAuthService(authRepo, hasher, jwtCfg, logger)
 		authHandler := handler.NewAuthHandler(authService)
 		auth := v1.Group("/auth")
 		{

@@ -12,7 +12,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -33,7 +32,6 @@ type Claims struct {
 
 type AuthService struct {
 	userRepo *repository.UserRepo // interface
-	tokenRdb *redis.Client        // redis client for tokens
 	hasher   pass.Hasher          // Argon2id/Bcrypt impl
 	jwtCfg   JWTConfig
 	log      *zap.Logger
@@ -41,14 +39,12 @@ type AuthService struct {
 
 func NewAuthService(
 	userRepo *repository.UserRepo,
-	tokenRedis *redis.Client,
 	hasher pass.Hasher,
 	jwtCfg JWTConfig,
 	log *zap.Logger,
 ) *AuthService {
 	return &AuthService{
 		userRepo: userRepo,
-		tokenRdb: tokenRedis,
 		hasher:   hasher,
 		jwtCfg:   jwtCfg,
 		log:      log,
@@ -138,15 +134,8 @@ func (as *AuthService) Login(ctx context.Context, email string, password string)
 	rtJTI := fmt.Sprintf("rt-%s", u.ID)
 	atJTI := fmt.Sprintf("at-%s", u.ID)
 	at, atExp, err := as.makeAccessToken(ctx, u, atJTI)
-	if err := as.tokenRdb.Set(ctx, atJTI, "access token", time.Until(atExp)).Err(); err != nil {
-		return "", "", 0, err
-	}
-	rt, rtExp, err := as.makeRefreshToken(ctx, u, rtJTI)
+	rt, _, err := as.makeRefreshToken(ctx, u, rtJTI)
 	if err != nil {
-		return "", "", 0, err
-	}
-
-	if err := as.tokenRdb.Set(ctx, rtJTI, "refresh token", time.Until(rtExp)).Err(); err != nil {
 		return "", "", 0, err
 	}
 
@@ -174,48 +163,39 @@ func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (string
 	}
 
 	// Check session on Redis
-	rtKey := fmt.Sprintf("RT:%s:%s", claims.UID, claims.ID)
-	if _, err := as.tokenRdb.Get(ctx, rtKey).Result(); err != nil {
-		return "", "", 0, enum.ErrRefreshToken
-	}
+	// rtKey := fmt.Sprintf("RT:%s:%s", claims.UID, claims.ID)
 
 	u, err := as.userRepo.GetUserByID(ctx, claims.UID)
 	if err != nil || u == nil {
 		return "", "", 0, enum.ErrUserNotFound
 	}
 
-	// Rotate: revoke old, create new
-	_ = as.tokenRdb.Del(ctx, rtKey).Err()
 
 	newRTJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
 	at, atExp, err := as.makeAccessToken(ctx, u, fmt.Sprintf("at-%d-%d", u.ID, time.Now().UnixNano()))
 	if err != nil {
 		return "", "", 0, err
 	}
-	rt, rtExp, err := as.makeRefreshToken(ctx, u, newRTJTI)
+	rt, _, err := as.makeRefreshToken(ctx, u, newRTJTI)
 	if err != nil {
 		return "", "", 0, err
 	}
-	newKey := fmt.Sprintf("RT:%d:%s", u.ID, newRTJTI)
-	if err := as.tokenRdb.Set(ctx, newKey, "token", time.Until(rtExp)).Err(); err != nil {
-		return "", "", 0, err
-	}
-
+	
 	return at, rt, int64(atExp.Unix()), nil
 }
 
 func (as *AuthService) Logout(ctx context.Context, userID int64, refreshJTI string, accessJTI string, accessExp time.Time) error {
 	// Revoke refresh session
-	key := fmt.Sprintf("RT:%d:%s", userID, refreshJTI)
-	_ = as.tokenRdb.Del(ctx, key).Err()
+	// key := fmt.Sprintf("RT:%d:%s", userID, refreshJTI)
+	// // _ = as.tokenRdb.Del(ctx, key).Err()
 
-	// Optional: blacklist access token by JTI until it expires
-	if accessJTI != "" && !accessExp.IsZero() {
-		blKey := fmt.Sprintf("BL_AT:%s", accessJTI)
-		ttl := time.Until(accessExp)
-		if ttl > 0 {
-			_ = as.tokenRdb.Set(ctx, blKey, "block token", ttl).Err()
-		}
-	}
+	// // Optional: blacklist access token by JTI until it expires
+	// if accessJTI != "" && !accessExp.IsZero() {
+	// 	blKey := fmt.Sprintf("BL_AT:%s", accessJTI)
+	// 	ttl := time.Until(accessExp)
+	// 	if ttl > 0 {
+	// 		_ = as.tokenRdb.Set(ctx, blKey, "block token", ttl).Err()
+	// 	}
+	// }
 	return nil
 }

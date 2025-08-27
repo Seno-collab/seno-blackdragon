@@ -1,48 +1,86 @@
 package config
 
 import (
-	"os"
-
-	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
 type Config struct {
-	JWT struct {
-		AccessSecret  string
-		RefreshSecret string
-	}
-	Redis struct {
-		Host     string
-		Password string
-	}
-	DB struct {
-		Port     string
-		Name     string
-		Host     string
-		User     string
-		Password string
-	}
-	Server struct {
-		Port string
-	}
+	JwtAccessSecret  string `mapstructure:"jwt_access_secret"`
+	JwtRefreshSecret string `mapstructure:"jwt_refresh_secret"`
+	RedisHost     string `mapstructure:"redis_host"`
+	RedisPassword string `mapstructure:"redis_password"`
+	RedisPort     int    `mapstructure:"redis_port"`
+	RedisDB       int    `mapstructure:"redis_db"`
+	DBName     string `mapstructure:"db_name"`
+	DBHost     string `mapstructure:"db_host"`
+	DBPort string `mapstructure:"db_port"`
+	DBUser     string `mapstructure:"db_user"`
+	DBPassword string `mapstructure:"db_password"`
+	DBSSLMode  string `mapstructure:"db_sslmode"`
+	ServerPort string `mapstructure:"server_port"`
+	ServerHost string `mapstructure:"server_host"`
+	Environment string `mapstructure:"environment"`
 }
 
 func LoadConfig(logger *zap.Logger) *Config {
-	if err := godotenv.Load(); err != nil {
-		logger.Error("Count not load .env file", zap.Error(err))
+	// Set default values
+	// setDefaults()
+
+	// Set environment variable key replacer to convert dots to underscores
+	// viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	
+	// Enable automatic environment variable reading with highest priority
+	viper.AutomaticEnv()
+	
+	// Ensure environment variables take precedence over config files
+	viper.SetEnvPrefix("")
+
+	viper.SetConfigName(".env")
+	viper.SetConfigType("env")
+	viper.AddConfigPath(".")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			logger.Warn("Error reading .env file", zap.Error(err))
+		}
+	} else {
+		logger.Info(".env file loaded for backward compatibility")
 	}
 
+	// Create config struct
 	cfg := &Config{}
-	cfg.JWT.AccessSecret = os.Getenv("JWT_ACCESS_SECRET")
-	cfg.JWT.RefreshSecret = os.Getenv("JWT_REFRESH_SECRET")
-	cfg.Redis.Host = os.Getenv("REDIS_ADDR")
-	cfg.Redis.Password = os.Getenv("REDIS_PASSWORD")
-	cfg.DB.Host = os.Getenv("DB_HOST")
-	cfg.DB.Port = os.Getenv("DB_PORT")
-	cfg.DB.Name = os.Getenv("DB_NAME")
-	cfg.DB.User = os.Getenv("DB_USER")
-	cfg.DB.Password = os.Getenv("DB_PASSWORD")
-	cfg.Server.Port = os.Getenv("PORT")
+	if err := viper.Unmarshal(cfg); err != nil {
+		logger.Fatal("Unable to decode config", zap.Error(err))
+	}
+
+	logger.Info("Configuration loaded successfully", 
+		zap.String("environment", cfg.Environment),
+		zap.String("server_port", cfg.ServerPort),
+		zap.String("db_host", cfg.DBHost))
 	return cfg
+}
+
+// GetString returns a string value from config
+func (c *Config) GetString(key string) string {
+	return viper.GetString(key)
+}
+
+// GetInt returns an int value from config
+func (c *Config) GetInt(key string) int {
+	return viper.GetInt(key)
+}
+
+// GetBool returns a bool value from config
+func (c *Config) GetBool(key string) bool {
+	return viper.GetBool(key)
+}
+
+// IsDevelopment returns true if environment is development
+func (c *Config) IsDevelopment() bool {
+	return c.Environment == "development"
+}
+
+// IsProduction returns true if environment is production
+func (c *Config) IsProduction() bool {
+	return c.Environment == "production"
 }

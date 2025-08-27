@@ -2,10 +2,10 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/cloudwego/kitex/pkg/remote/trans/nphttp2/status"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -36,7 +36,7 @@ type DBConfig struct {
 }
 
 var DBCache = []DBConfig{
-	{Name: "token", DB: 0},
+	{Name: "Token", DB: 0},
 }
 
 // Init creates and health-checks all redis clients.
@@ -61,56 +61,41 @@ func InitRedis(logger *zap.Logger, cfg Config) (*ClientSet, error) {
 		cfg.PoolTimeout = 30 * time.Second
 	}
 	if len(cfg.Databases) == 0 {
-		cfg.Databases = []DBConfig{{Name: "token", DB: 0}}
+		cfg.Databases = []DBConfig{{Name: "Token", DB: 0}}
 	}
 
 	cs := &ClientSet{clients: make(map[string]*redis.Client, len(cfg.Databases))}
-	var firstErr error
 
+	var firstErr error
 	for _, d := range cfg.Databases {
 		rc := redis.NewClient(&redis.Options{
-			Addr:         cfg.Addr,
-			Password:     cfg.Password,
-			DB:           d.DB,
-			PoolSize:     cfg.PoolSize,
-			MinIdleConns: cfg.MinIdleConns,
-			DialTimeout:  cfg.DialTimeout,
-			ReadTimeout:  cfg.ReadTimeout,
-			WriteTimeout: cfg.WriteTimeout,
-			PoolTimeout:  cfg.PoolTimeout,
+		Addr:         cfg.Addr,
+		Password:     cfg.Password,
+		DB: d.DB,
+		PoolSize:     cfg.PoolSize,
+		MinIdleConns: cfg.MinIdleConns,
+		DialTimeout:  cfg.DialTimeout,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		PoolTimeout:  cfg.PoolTimeout,
+			
 		})
-
-		// Ping with timeout to avoid hanging on startup
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		if err := rc.Ping(ctx).Err(); err != nil {
-			cancel()
-			logger.Error("redis_connect_failed",
-				zap.String("name", d.Name),
-				zap.Int("db", d.DB),
-				zap.String("addr", cfg.Addr),
-				zap.Error(err),
-			)
-			_ = rc.Close()
-			if firstErr == nil {
-				firstErr = fmt.Errorf("redis %q (db=%d) connect error: %w", d.Name, d.DB, err)
-			}
-			continue
-		}
-		cancel()
-
-		logger.Info("redis_connected",
-			zap.String("name", d.Name),
-			zap.Int("db", d.DB),
-		)
-		cs.clients[d.Name] = rc
-	}
-
-	if len(cs.clients) == 0 {
 		if firstErr == nil {
-			firstErr = errors.New("no redis clients initialized")
+			firstErr = status.Err()
 		}
-		return nil, firstErr
+		if err := rc.Ping(context.Background()).Err(); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+		 _, ok := cs.clients[d.Name]; 
+		if ok {
+			firstErr = fmt.Errorf("redis client already exists: %s", d.Name)
+		} else {
+			cs.clients[d.Name]= rc
+		}
 	}
+
 	return cs, firstErr
 }
 
