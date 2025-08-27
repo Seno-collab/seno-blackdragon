@@ -30,17 +30,17 @@ func main() {
 	defer logger.Close()
 	cfg := config.LoadConfig(logger.Log)
 
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
 	gin.SetMode(gin.ReleaseMode)
 
 	logger.Log.Info("App started",
 		zap.String("Module", "main"),
 		zap.Int("version", 1),
 	)
-	db := db.ConnectDatabase(logger.Log, dsn, cfg.DB.Name)
+	db := db.ConnectDatabase(logger.Log, dsn, cfg.DBName)
 	redis := store.Config{
-		Addr:      cfg.Redis.Host,
-		Password:  cfg.Redis.Password,
+		Addr:      fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
+		Password:  cfg.RedisPassword,
 		Databases: store.DBCache,
 	}
 	cs, err := store.InitRedis(logger.Log, redis)
@@ -50,11 +50,11 @@ func main() {
 	defer cs.Close(logger.Log)
 	router := api.InitRouter(db, logger.Log, cs, cfg)
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", cfg.Server.Port),
+		Addr:    fmt.Sprintf(":%s", cfg.ServerPort),
 		Handler: router,
 	}
 	go func() {
-		logger.Log.Info("Service running at port 8080")
+		logger.Log.Info("Service running", zap.String("port", cfg.ServerPort))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Log.Fatal("Server error", zap.Error(err))
 		}

@@ -32,7 +32,6 @@ coverage.*
 
 # Environment config
 .env
-.env.*
 
 # OS-specific
 .DS_Store
