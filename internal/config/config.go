@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -25,10 +27,10 @@ type Config struct {
 
 func LoadConfig(logger *zap.Logger) *Config {
 	// Set default values
-	// setDefaults()
+	setDefaults()
 
 	// Set environment variable key replacer to convert dots to underscores
-	// viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	
 	// Enable automatic environment variable reading with highest priority
 	viper.AutomaticEnv()
@@ -58,6 +60,33 @@ func LoadConfig(logger *zap.Logger) *Config {
 		zap.String("server_port", cfg.ServerPort),
 		zap.String("db_host", cfg.DBHost))
 	return cfg
+}
+
+func setDefaults() {
+	// JWT defaults
+	viper.SetDefault("jwt_access_secret", "your-access-secret-key")
+	viper.SetDefault("jwt_refresh_secret", "your-refresh-secret-key")
+
+	// Redis defaults
+	viper.SetDefault("redis_host", "localhost")
+	viper.SetDefault("redis_port", 6379)
+	viper.SetDefault("redis_db", 0)
+	viper.SetDefault("redis_password", "")
+
+	// Database defaults
+	viper.SetDefault("db_host", "localhost")
+	viper.SetDefault("db_port", "5432")
+	viper.SetDefault("db_name", "seno_blackdragon")
+	viper.SetDefault("db_user", "postgres")
+	viper.SetDefault("db_password", "")
+	viper.SetDefault("db_sslmode", "disable")
+
+	// Server defaults
+	viper.SetDefault("server_host", "0.0.0.0")
+	viper.SetDefault("server_port", "8080")
+
+	// Environment
+	viper.SetDefault("environment", "development")
 }
 
 // GetString returns a string value from config
