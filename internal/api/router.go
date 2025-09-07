@@ -61,7 +61,7 @@ func InitRouter(db *pgx.Conn, logger *zap.Logger, redis *store.ClientSet, cfg *c
 		hasher := pass.NewBcryptHasher(pass.BcryptOptions{Cost: 12})
 
 		authRepo := repository.NewUserRepo(db)
-		authService := service.NewAuthService(authRepo, hasher, jwtCfg, logger)
+		authService := service.NewAuthService(authRepo, hasher, redis.MustGet("token"), jwtCfg, logger)
 		authHandler := handler.NewAuthHandler(authService)
 		auth := v1.Group("/auth")
 		{

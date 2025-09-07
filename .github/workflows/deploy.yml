@@ -42,7 +42,7 @@ jobs:
 
             echo "📦 Docker Compose build & deploy..."
             docker compose pull || true
-            docker compose build
+            docker compose build --no-cache
             docker compose up -d --remove-orphans
 
             echo "🧹 Cleaning up old Docker images..."

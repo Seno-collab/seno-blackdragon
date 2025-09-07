@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"time"
 
+	"seno-blackdragon/internal/model"
 	"seno-blackdragon/internal/service"
 	"seno-blackdragon/pkg/dto"
 	"seno-blackdragon/pkg/enum"
 	"seno-blackdragon/pkg/middleware"
+	"seno-blackdragon/pkg/pass"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,8 +23,10 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email      string            `json:"email" binding:"required,email"`
+	Password   string            `json:"password" binding:"required"`
+	DeviceID   string            `json:"device_id"`
+	DeviceMeta map[string]string `json:"device_meta"`
 }
 
 type LoginResponse struct {
@@ -54,22 +58,33 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.VALIDATION_FAILED,
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeInvalidToken,
 			"Invalid login payload", traceID, reqTime, err))
 		return
 	}
-
-	accessToken, refreshToken, expires, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
+	// TODO: write code verify password
+	if err := pass.VerifyPassword(req.Password); err != nil {
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeBadRequest, "Invalid login payload", traceID, reqTime, err))
+		return
+	}
+	cmd := model.LoginCmd{
+		Email:    req.Email,
+		Password: req.Password,
+		DeviceID: req.DeviceID,
+		IP:       c.ClientIP(),
+		UA:       c.GetHeader("User-Agent"),
+	}
+	token, err := h.authService.Login(c.Request.Context(), cmd)
 	if err != nil {
-		dto.WriteJSON(c, http.StatusUnauthorized, dto.NewError(http.StatusUnauthorized, enum.AUTH_FAILED,
+		dto.WriteJSON(c, http.StatusUnauthorized, dto.NewError(http.StatusUnauthorized, enum.CodeAuth,
 			"Invalid email or password", traceID, reqTime, err))
 		return
 	}
 	resp := LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
 		TokenType:    "Bearer",
-		Expires:      expires,
+		Expires:      token.Expired,
 	}
 	dto.Ok(c, dto.NewSuccess(http.StatusOK, "Login success", traceID, resp, reqTime))
 }
@@ -101,16 +116,20 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if traceID == "" {
 		traceID = c.GetHeader(middleware.HeaderKeyTraceID)
 	}
-
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.VALIDATION_FAILED,
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeInvalidToken,
 			"Invalid register payload", traceID, reqTime, err))
+		return
+	}
+	// TODO: write code verify password
+	if err := pass.VerifyPassword(req.Password); err != nil {
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeBadRequest, "Invalid login payload", traceID, reqTime, err))
 		return
 	}
 	_, err := h.authService.Register(c.Request.Context(), req.FullName, req.Bio, req.Email, req.Password)
 	if err != nil {
-		dto.WriteJSON(c, http.StatusBadRequest, dto.NewError(http.StatusBadRequest, enum.BUSINESS_ERROR,
+		dto.WriteJSON(c, http.StatusBadRequest, dto.NewError(http.StatusBadRequest, enum.CodeBusinessError,
 			"Register user failed", traceID, reqTime, err))
 		return
 	}
@@ -144,10 +163,23 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		traceID = c.GetHeader(middleware.HeaderKeyTraceID)
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.BAD_REQUEST, "Invalid refresh token request", traceID, reqTime, err))
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeBadRequest, "Invalid refresh token request", traceID, reqTime, err))
+		return
 	}
 	if req.RefreshToken == "" {
-		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.BAD_REQUEST, "Invalid refresh token", traceID, reqTime, enum.ErrRefreshToken))
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeBadRequest, "Invalid refresh token", traceID, reqTime, enum.ErrWrongType))
+		return
 	}
-	// access_token, refresh_token, err := h.authService.Refresh(c, req.RefreshToken)
+	token, err := h.authService.Refresh(c, req.RefreshToken)
+	if err != nil {
+		dto.BadRequest(c, dto.NewError(http.StatusBadRequest, enum.CodeBadRequest, "error", traceID, reqTime, err))
+	}
+	resp := LoginResponse{
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		TokenType:    "Bearer",
+		Expires:      token.Expired,
+	}
+	dto.Ok(c, dto.NewSuccess(http.StatusOK, "Refresh token success", traceID, resp, reqTime))
+	return
 }
