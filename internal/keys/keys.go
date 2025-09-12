@@ -9,9 +9,11 @@ func RevokedSess(sid string) string { return "revoked:sess:" + sid }
 
 func UserVer(uid string) string { return "user_ver" + uid }
 
-func RTActive(jti string) string      { return "rt:active" + jti }
-func RTRevoked(jti string) string     { return "rt:revoked:" + jti }
-func RTFamilyBlock(fam string) string { return "rt:family:black" + fam }
-func RotateLock(fam string) string    { return "rotate:lock" + fam }
-func FamActive(fam string) string     { return "rt:fam:active" + fam }
-func FamBlack(fam string) string      { return "rt:family:back" + fam }
+func UserDeviceFams(uid, did string) string { return "user_device_fams:" + uid + ":" + did }
+func UserFams(uid string) string            { return "user_fams:" + uid }
+func RTActive(jti string) string            { return "rt:active" + jti }
+func RTRevoked(jti string) string           { return "rt:revoked:" + jti }
+func RTFamilyBlock(fam string) string       { return "rt:family:black" + fam }
+func RotateLock(fam string) string          { return "rotate:lock" + fam }
+func FamActive(fam string) string           { return "rt:fam:active" + fam }
+func FamBlack(fam string) string            { return "rt:family:back" + fam }

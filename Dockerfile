@@ -19,10 +19,11 @@ RUN swag init -g cmd/main.go -o docs
 
 
 # LƯU Ý: tất cả trên MỘT dòng hoặc nối bằng '&&' để không bị tách instruction
-RUN go build -trimpath -buildvcs=false \
-  -ldflags="-s -w -buildid= 
+RUN go build \
+  -trimpath \
+  -buildvcs=false \
+  -ldflags "-s -w -buildid=" \
   -o /out/app ./cmd
-
 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /app

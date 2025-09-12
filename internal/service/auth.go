@@ -176,12 +176,13 @@ func (as *AuthService) makeAccessToken(u *repository.UserModel, jti, sessionID, 
 	return ss, exp, err
 }
 
-func (as *AuthService) makeRefreshToken(u *repository.UserModel, jti, deviceID, fam string) (string, time.Time, error) {
+func (as *AuthService) makeRefreshToken(u *repository.UserModel, jti, deviceID, fam string, uv int) (string, time.Time, error) {
 	now := time.Now().UTC()
 	exp := now.Add(time.Duration(as.jwtCfg.RefreshTTL) * time.Second)
 	claims := &RefreshClaims{
 		DeviceID: deviceID,
 		Fam:      fam,
+		Uv:       uv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    as.jwtCfg.Issuer,
 			Subject:   u.ID.String(),
@@ -327,13 +328,17 @@ func (as *AuthService) Login(ctx context.Context, cmd model.LoginCmd) (*model.To
 	}
 	fam := newID("FAM_")
 	rtJTI := fmt.Sprintf("rt-%s-%d", u.ID, time.Now().UnixNano())
-	rt, _, err := as.makeRefreshToken(u, rtJTI, did, fam)
+	uv, _ := as.EnsureUserVersion(ctx, u.ID.String())
+
+	rt, _, err := as.makeRefreshToken(u, rtJTI, did, fam, uv)
 	if err != nil {
 		return nil, enum.ErrInvalidToken
 	}
+
 	pipe := as.redis.TxPipeline()
 	pipe.Set(ctx, keys.RTActive(rtJTI), fmt.Sprintf(`{"user_id:"%s","device_id": "%s", "fam":"%s"}`, u.ID.String(), did, fam), as.jwtCfg.RefreshTTL)
 	pipe.SAdd(ctx, keys.FamActive(fam), rtJTI)
+	pipe.SAdd(ctx, keys.UserDeviceFams(u.ID.String(), did), fam)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, err
 	}
@@ -382,6 +387,12 @@ func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (*model
 	if n, _ := as.redis.Exists(ctx, keys.RTActive(jti)).Result(); n != 1 {
 		return nil, enum.ErrRefreshNotActive
 	}
+	if claims.Uv > 0 {
+		curUv, err := as.GetUserVersion(ctx, jti)
+		if err != nil && curUv != claims.Uv {
+			return nil, enum.ErrInvalidToken
+		}
+	}
 	u, err := as.userRepo.GetUserByID(ctx, uuid.MustParse(claims.Subject))
 	if err != nil || u == nil {
 		return nil, enum.ErrUserNotFound
@@ -401,7 +412,7 @@ func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (*model
 	pipe.Set(ctx, keys.RTRevoked(jti), "1", ttlLeft)
 
 	newRTJTI := fmt.Sprintf("rt-%d-%d", u.ID, time.Now().UnixNano())
-	newRT, _, err := as.makeRefreshToken(u, newRTJTI, claims.DeviceID, fam)
+	newRT, _, err := as.makeRefreshToken(u, newRTJTI, claims.DeviceID, fam, claims.Uv)
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +448,7 @@ func (as *AuthService) Refresh(ctx context.Context, refreshToken string) (*model
 	return token, nil
 }
 func (as *AuthService) LogoutDevice(ctx context.Context, userID, deviceID string) error {
-	fams, _ := as.redis.SMembers(ctx, keys.UserDevice(userID)).Result()
+	fams, _ := as.redis.SMembers(ctx, keys.UserDeviceFams(userID, deviceID)).Result()
 	pipe := as.redis.TxPipeline()
 	for _, fam := range fams {
 		pipe.Set(ctx, keys.FamBlack(fam), "1", as.jwtCfg.RefreshTTL)
@@ -459,6 +470,6 @@ func (as *AuthService) LogoutDevice(ctx context.Context, userID, deviceID string
 	return nil
 }
 
-func (as *AuthService) LogoutAll(ctx context.Context, userID string)  error {
-	fams, _ := as.redis.SMembers()
-}
+// func (as *AuthService) LogoutAll(ctx context.Context, userID string) error {
+// 	fams, _ := as.redis.SMembers(ctx, keys.UserFam)
+// }
